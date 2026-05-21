@@ -1,5 +1,8 @@
 import streamlit as st
 
+import streamlit as st
+st.write("Key starts with:", st.secrets.get("OPENAI_API_KEY", "NOT FOUND")[:8])
+
 from agents import (
     run_game,
     reset_game,
