@@ -172,7 +172,7 @@ if (
         # BOARD PROXY INTERACTIONS
         # =====================================
         st.subheader(
-            "Board Proxy Agent Interactions"
+            "Board Proxy Interactions"
         )
 
         proxy_history = (
@@ -216,7 +216,7 @@ if (
         )
 
         for msg in (
-            result["chat_history"]
+            result.chat_history
         ):
 
             role = msg.get(
@@ -252,7 +252,7 @@ if (
         # TOOL USAGE
         # =====================================
         st.subheader(
-            "Tool Usage (Functions)"
+            "Tool Usage"
         )
 
         tool_calls = (
