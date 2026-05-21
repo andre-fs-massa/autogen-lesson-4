@@ -1,5 +1,4 @@
 import os
-
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -74,12 +73,9 @@ def reset_game():
 # =====================================
 def get_legal_moves() -> str:
 
-    legal_moves = (
-        ",".join(
-            str(move)
-            for move
-            in board.legal_moves
-        )
+    legal_moves = ",".join(
+        str(move)
+        for move in board.legal_moves
     )
 
     result = (
@@ -113,24 +109,26 @@ def make_move(
         .from_uci(move)
     )
 
-    board.push_uci(
-        str(chess_move)
+    board.push(
+        chess_move
     )
 
-    piece = (
-        board.piece_at(
-            chess_move.to_square
-        )
+    piece = board.piece_at(
+        chess_move.to_square
     )
 
     piece_symbol = (
         piece.unicode_symbol()
+        if piece
+        else ""
     )
 
     piece_name = (
         chess.piece_name(
             piece.piece_type
         ).capitalize()
+        if piece
+        else "Piece"
     )
 
     move_text = (
@@ -160,115 +158,84 @@ def make_move(
 # =====================================
 def create_agents():
 
+    board_proxy = (
+        ConversableAgent(
+            name="BoardProxy",
+            llm_config=False,
+            human_input_mode="NEVER",
+            code_execution_config=False,
+        )
+    )
+
     player_white = (
         ConversableAgent(
-            name=
-            "PlayerWhite",
+            name="PlayerWhite",
 
-            system_message=
-            (
+            system_message=(
                 "You are a chess player "
                 "playing as white. "
                 "Always first call "
                 "get_legal_moves(). "
-                "Then select ONE move "
-                "and call "
-                "make_move(move). "
-                "After your move, "
-                "make short fun chitchat."
+                "Then choose ONE move "
+                "and call make_move(move). "
+                "After moving, add a short "
+                "fun chess comment."
             ),
 
-            llm_config=
-            llm_config,
-
-            human_input_mode=
-            "NEVER",
+            llm_config=llm_config,
+            human_input_mode="NEVER",
         )
     )
 
     player_black = (
         ConversableAgent(
-            name=
-            "PlayerBlack",
+            name="PlayerBlack",
 
-            system_message=
-            (
+            system_message=(
                 "You are a chess player "
                 "playing as black. "
                 "Always first call "
                 "get_legal_moves(). "
-                "Then select ONE move "
-                "and call "
-                "make_move(move). "
-                "After your move, "
-                "make short fun chitchat."
+                "Then choose ONE move "
+                "and call make_move(move). "
+                "After moving, add a short "
+                "fun chess comment."
             ),
 
-            llm_config=
-            llm_config,
-
-            human_input_mode=
-            "NEVER",
-        )
-    )
-
-    board_proxy = (
-        ConversableAgent(
-            name=
-            "BoardProxy",
-
-            llm_config=
-            False,
-
-            human_input_mode=
-            "NEVER",
-
-            code_execution_config=
-            False,
+            llm_config=llm_config,
+            human_input_mode="NEVER",
         )
     )
 
     for caller in [
         player_white,
-        player_black
+        player_black,
     ]:
 
         register_function(
             get_legal_moves,
-
-            caller=
-            caller,
-
-            executor=
-            board_proxy,
-
-            name=
-            "get_legal_moves",
-
-            description=
-            "Get legal chess moves."
+            caller=caller,
+            executor=board_proxy,
+            name="get_legal_moves",
+            description=(
+                "Get legal chess moves."
+            ),
         )
 
         register_function(
             make_move,
-
-            caller=
-            caller,
-
-            executor=
-            board_proxy,
-
-            name=
-            "make_move",
-
-            description=
-            "Make a chess move."
+            caller=caller,
+            executor=board_proxy,
+            name="make_move",
+            description=(
+                "Make a chess move."
+            ),
         )
 
     return (
         player_white,
         player_black,
-        board_proxy
+        board_proxy,
     )
 
 
@@ -282,7 +249,7 @@ def run_game(
     (
         player_white,
         player_black,
-        board_proxy
+        board_proxy,
     ) = create_agents()
 
     all_messages = []
@@ -291,22 +258,21 @@ def run_game(
         player_white
     )
 
-    for turn in range(
-        turns
-    ):
+    for _ in range(turns):
 
         result = (
             current_player
-            .generate_reply(
-                messages=[
-                    {
-                        "role":
-                        "user",
+            .initiate_chat(
+                recipient=
+                board_proxy,
 
-                        "content":
-                        "Make one legal chess move."
-                    }
-                ]
+                message=
+                "Make one legal chess move.",
+
+                max_turns=1,
+
+                summary_method=
+                "last_msg",
             )
         )
 
@@ -316,22 +282,23 @@ def run_game(
                 current_player.name,
 
                 "content":
-                result,
+                result.summary,
             }
         )
 
         board_proxy_history.append(
             {
                 "from":
-                "BoardProxy",
+                current_player.name,
 
                 "to":
-                current_player.name,
+                "BoardProxy",
 
                 "message":
                 (
-                    "Executed chess tools "
-                    "for move selection."
+                    "Requested legal "
+                    "moves and executed "
+                    "a chess move."
                 )
             }
         )
@@ -340,8 +307,7 @@ def run_game(
             player_black
             if current_player
             == player_white
-            else
-            player_white
+            else player_white
         )
 
     return {

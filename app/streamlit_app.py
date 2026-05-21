@@ -216,7 +216,7 @@ if (
         )
 
         for msg in (
-            result.chat_history
+            result["chat_history"]
         ):
 
             role = msg.get(
