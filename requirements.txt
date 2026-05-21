@@ -1,5 +1,5 @@
-pyautogen==0.2.38
-openai==1.30.5
+pyautogen==0.2.35
+openai==1.16.2
 streamlit
 python-chess
 python-dotenv
