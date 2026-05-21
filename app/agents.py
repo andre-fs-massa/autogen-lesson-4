@@ -242,9 +242,7 @@ def create_agents():
 # =====================================
 # RUN GAME
 # =====================================
-def run_game(
-    turns=4
-):
+def run_game(turns=4):
 
     (
         player_white,
@@ -252,69 +250,75 @@ def run_game(
         board_proxy,
     ) = create_agents()
 
-    all_messages = []
-
-    current_player = (
-        player_white
+    result = player_black.initiate_chat(
+        recipient=player_white,
+        message="Let's play chess! Your move.",
+        max_turns=turns,
+        summary_method="last_msg",
     )
 
-    for _ in range(turns):
+    chat_history = []
 
-        result = (
-            current_player
-            .initiate_chat(
-                recipient=
-                board_proxy,
+    for msg in result.chat_history:
 
-                message=
-                "Make one legal chess move.",
+        name = msg.get("name")
+        content = msg.get("content", "")
 
-                max_turns=1,
+        if name and content:
 
-                summary_method=
-                "last_msg",
+            chat_history.append(
+                {
+                    "name": name,
+                    "content": content,
+                }
             )
-        )
 
-        all_messages.append(
-            {
-                "name":
-                current_player.name,
+    # Build high-level BoardProxy interactions
+    global board_proxy_history
+    board_proxy_history = []
 
-                "content":
-                result.summary,
-            }
-        )
+    for tool in agent_interactions:
 
-        board_proxy_history.append(
-            {
-                "from":
-                current_player.name,
+        if (
+            tool["tool"]
+            == "get_legal_moves()"
+        ):
 
-                "to":
-                "BoardProxy",
+            board_proxy_history.append(
+                {
+                    "from":
+                    "Player Agent",
 
-                "message":
-                (
-                    "Requested legal "
-                    "moves and executed "
-                    "a chess move."
-                )
-            }
-        )
+                    "to":
+                    "BoardProxy",
 
-        current_player = (
-            player_black
-            if current_player
-            == player_white
-            else player_white
-        )
+                    "message":
+                    "Requested legal moves."
+                }
+            )
+
+        elif (
+            tool["tool"]
+            == "make_move()"
+        ):
+
+            board_proxy_history.append(
+                {
+                    "from":
+                    "BoardProxy",
+
+                    "to":
+                    "Player Agent",
+
+                    "message":
+                    tool["content"]
+                }
+            )
 
     return {
         "chat_history":
-        all_messages
+        chat_history
     }
-
 
 # =====================================
 # BOARD SVG
