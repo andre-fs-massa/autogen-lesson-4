@@ -43,11 +43,9 @@ llm_config = {
 
 
 # =====================================
-# GLOBAL STATE
+# GAME STATE
 # =====================================
 board = chess.Board()
-
-made_move = False
 
 agent_interactions = []
 
@@ -60,13 +58,10 @@ board_proxy_history = []
 def reset_game():
 
     global board
-    global made_move
     global agent_interactions
     global board_proxy_history
 
     board = chess.Board()
-
-    made_move = False
 
     agent_interactions = []
 
@@ -77,7 +72,7 @@ def reset_game():
 # TOOL:
 # GET LEGAL MOVES
 # =====================================
-def get_legal_moves():
+def get_legal_moves() -> str:
 
     legal_moves = (
         ",".join(
@@ -111,9 +106,7 @@ def get_legal_moves():
 # =====================================
 def make_move(
     move: str
-):
-
-    global made_move
+) -> str:
 
     chess_move = (
         chess.Move
@@ -123,8 +116,6 @@ def make_move(
     board.push_uci(
         str(chess_move)
     )
-
-    made_move = True
 
     piece = (
         board.piece_at(
@@ -165,24 +156,6 @@ def make_move(
 
 
 # =====================================
-# TERMINATION CHECK
-# =====================================
-def check_made_move(
-    msg
-):
-
-    global made_move
-
-    if made_move:
-
-        made_move = False
-
-        return True
-
-    return False
-
-
-# =====================================
 # CREATE AGENTS
 # =====================================
 def create_agents():
@@ -195,19 +168,21 @@ def create_agents():
             system_message=
             (
                 "You are a chess player "
-                "and you play as white. "
-                "First call "
-                "get_legal_moves() "
-                "to get legal moves. "
-                "Then call "
-                "make_move(move) "
-                "to make a move. "
-                "After making a move, "
-                "make fun chitchat."
+                "playing as white. "
+                "Always first call "
+                "get_legal_moves(). "
+                "Then select ONE move "
+                "and call "
+                "make_move(move). "
+                "After your move, "
+                "make short fun chitchat."
             ),
 
             llm_config=
             llm_config,
+
+            human_input_mode=
+            "NEVER",
         )
     )
 
@@ -219,19 +194,21 @@ def create_agents():
             system_message=
             (
                 "You are a chess player "
-                "and you play as black. "
-                "First call "
-                "get_legal_moves() "
-                "to get legal moves. "
-                "Then call "
-                "make_move(move) "
-                "to make a move. "
-                "After making a move, "
-                "make fun chitchat."
+                "playing as black. "
+                "Always first call "
+                "get_legal_moves(). "
+                "Then select ONE move "
+                "and call "
+                "make_move(move). "
+                "After your move, "
+                "make short fun chitchat."
             ),
 
             llm_config=
             llm_config,
+
+            human_input_mode=
+            "NEVER",
         )
     )
 
@@ -243,18 +220,14 @@ def create_agents():
             llm_config=
             False,
 
-            is_termination_msg=
-            check_made_move,
-
-            default_auto_reply=
-            "Please make a move.",
-
             human_input_mode=
             "NEVER",
+
+            code_execution_config=
+            False,
         )
     )
 
-    # Register tools
     for caller in [
         player_white,
         player_black
@@ -262,68 +235,40 @@ def create_agents():
 
         register_function(
             get_legal_moves,
-            caller=caller,
-            executor=board_proxy,
-            name="get_legal_moves",
+
+            caller=
+            caller,
+
+            executor=
+            board_proxy,
+
+            name=
+            "get_legal_moves",
+
             description=
-            "Get legal moves."
+            "Get legal chess moves."
         )
 
         register_function(
             make_move,
-            caller=caller,
-            executor=board_proxy,
-            name="make_move",
+
+            caller=
+            caller,
+
+            executor=
+            board_proxy,
+
+            name=
+            "make_move",
+
             description=
             "Make a chess move."
         )
 
-    # Nested chats
-    player_white.register_nested_chats(
-        trigger=
-        player_black,
-
-        chat_queue=[
-            {
-                "sender":
-                board_proxy,
-
-                "recipient":
-                player_white,
-
-                "summary_method":
-                "last_msg",
-
-                "silent":
-                True,
-            }
-        ],
-    )
-
-    player_black.register_nested_chats(
-        trigger=
-        player_white,
-
-        chat_queue=[
-            {
-                "sender":
-                board_proxy,
-
-                "recipient":
-                player_black,
-
-                "summary_method":
-                "last_msg",
-
-                "silent":
-                True,
-            }
-        ],
-    )
-
     return (
         player_white,
-        player_black
+        player_black,
+        board_proxy
     )
 
 
@@ -336,25 +281,44 @@ def run_game(
 
     (
         player_white,
-        player_black
+        player_black,
+        board_proxy
     ) = create_agents()
 
-    result = (
-        player_black
-        .initiate_chat(
-            player_white,
+    all_messages = []
 
-            message=
-            "Let's play chess! "
-            "Your move.",
-
-            max_turns=
-            turns,
-        )
+    current_player = (
+        player_white
     )
 
-    # Create proxy history
-    for tool in agent_interactions:
+    for turn in range(
+        turns
+    ):
+
+        result = (
+            current_player
+            .generate_reply(
+                messages=[
+                    {
+                        "role":
+                        "user",
+
+                        "content":
+                        "Make one legal chess move."
+                    }
+                ]
+            )
+        )
+
+        all_messages.append(
+            {
+                "name":
+                current_player.name,
+
+                "content":
+                result,
+            }
+        )
 
         board_proxy_history.append(
             {
@@ -362,21 +326,28 @@ def run_game(
                 "BoardProxy",
 
                 "to":
-                (
-                    "PlayerWhite"
-                    if len(
-                        board_proxy_history
-                    ) % 2 == 0
-                    else
-                    "PlayerBlack"
-                ),
+                current_player.name,
 
                 "message":
-                tool["content"]
+                (
+                    "Executed chess tools "
+                    "for move selection."
+                )
             }
         )
 
-    return result
+        current_player = (
+            player_black
+            if current_player
+            == player_white
+            else
+            player_white
+        )
+
+    return {
+        "chat_history":
+        all_messages
+    }
 
 
 # =====================================
