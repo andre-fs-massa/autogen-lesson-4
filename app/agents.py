@@ -15,16 +15,25 @@ from autogen import (
 # =====================================
 # LOAD ENVIRONMENT
 # =====================================
-BASE_DIR = (
-    Path(__file__)
-    .resolve()
-    .parent
-    .parent
-)
+import streamlit as st
 
-load_dotenv(
-    BASE_DIR / ".env"
-)
+# Load from Streamlit secrets if available, fallback to .env locally
+try:
+    openai_api_key = st.secrets["OPENAI_API_KEY"]
+except Exception:
+    from dotenv import load_dotenv
+    from pathlib import Path
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+
+llm_config = {
+    "config_list": [
+        {
+            "model": "gpt-4o-mini",
+            "api_key": openai_api_key,
+        }
+    ]
+}
 
 
 # =====================================
